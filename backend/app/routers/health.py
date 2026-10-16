@@ -23,7 +23,7 @@ async def readiness(session: AsyncSession = Depends(get_session)) -> dict[str, s
     """Readiness: verify the database answers a trivial query."""
     settings = get_settings()
     try:
-        await session.exec(text("SELECT 1"))
+        await session.execute(text("SELECT 1"))
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

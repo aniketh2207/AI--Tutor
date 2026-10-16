@@ -75,7 +75,8 @@ def test_openapi_schema_and_frontend_typescript_contract_alignment() -> None:
     paths = openapi_schema.get("paths", {})
 
     required_endpoints = [
-        "/api/health",
+        "/health",
+        "/livez",
         "/api/auth/register",
         "/api/auth/login",
         "/api/auth/google",

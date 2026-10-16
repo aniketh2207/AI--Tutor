@@ -54,17 +54,45 @@ async def spa_prod_client(
     spa_static_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> AsyncGenerator[AsyncClient, None]:
-    """App in production mode (docs off) with SPA static files mounted."""
+    """App with SPA mounted and an isolated in-memory DB for /health readiness."""
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlmodel import SQLModel
+    from sqlmodel.ext.asyncio.session import AsyncSession
+
+    from backend.app.database import get_session
+
     get_settings.cache_clear()
     monkeypatch.setenv("APP_ENV", "development")  # skip JWT prod gate in unit tests
     monkeypatch.setenv("DEBUG", "false")
     get_settings.cache_clear()
+
+    test_engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        echo=False,
+        future=True,
+        connect_args={"check_same_thread": False},
+    )
+    async with test_engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+    test_session_maker = async_sessionmaker(
+        bind=test_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    async def override_get_session() -> AsyncGenerator[AsyncSession, None]:
+        async with test_session_maker() as session:
+            yield session
+
     app = create_app(static_root=spa_static_dir)
+    app.dependency_overrides[get_session] = override_get_session
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://testserver",
     ) as client:
         yield client
+    app.dependency_overrides.clear()
+    await test_engine.dispose()
     get_settings.cache_clear()
 
 
@@ -92,7 +120,7 @@ async def test_health_returns_503_when_database_fails(
     get_settings.cache_clear()
 
     broken = MagicMock()
-    broken.exec = AsyncMock(side_effect=RuntimeError("db down"))
+    broken.execute = AsyncMock(side_effect=RuntimeError("db down"))
 
     async def override_session() -> AsyncGenerator[object, None]:
         yield broken
