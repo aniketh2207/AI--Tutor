@@ -275,9 +275,11 @@ def test_phase_5_docker_cicd_and_readme_readiness() -> None:
     assert "--min-instances=0" in cicd
     assert "--max-instances=2" in cicd
     assert "--memory=512Mi" in cicd
+    assert "--set-secrets=" in cicd
 
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     assert "4-Step Socratic Loop" in readme
     assert "Continue with Google" in readme
     assert "GOOGLE_CLIENT_ID" in readme
+    assert "Deploy and roll back" in readme
 

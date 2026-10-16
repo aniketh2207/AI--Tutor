@@ -28,6 +28,8 @@ services:
         condition: service_healthy
     environment:
       PORT: 8000
+      APP_ENV: development
+      DEBUG: "true"
       DATABASE_URL: postgresql+psycopg://socratic:socratic_dev_password@db:5432/socratic_tutor
       GOOGLE_GENAI_USE_VERTEXAI: "true"
       GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-ai-tutor-511715}

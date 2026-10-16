@@ -20,6 +20,9 @@ frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 
+# Local agent handoff / audit artifacts (never push to GitHub)
+handoff_audit/
+
 # OS / IDE
 .DS_Store
 Thumbs.db

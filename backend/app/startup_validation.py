@@ -37,13 +37,12 @@ def validate_production_settings(settings: Settings | None = None) -> None:
             "DEBUG must be false outside development/test environments."
         )
 
+    # Missing/blank GOOGLE_CLIENT_ID is allowed: Google Sign-In stays disabled via
+    # /api/auth/public-config. Placeholder values are still refused so a half-configured
+    # deploy cannot pretend Google auth is live.
     client_id = active.google_client_id.strip()
-    if (
-        not client_id
-        or client_id.startswith("mock-")
-        or client_id.startswith("your-")
-    ):
+    if client_id.startswith("mock-") or client_id.startswith("your-"):
         raise RuntimeError(
-            "GOOGLE_CLIENT_ID must be a real OAuth Web client ID outside "
-            "development/test environments."
+            "GOOGLE_CLIENT_ID is set to a placeholder (mock-/your-). "
+            "Unset it to disable Google Sign-In, or provide a real OAuth Web client ID."
         )

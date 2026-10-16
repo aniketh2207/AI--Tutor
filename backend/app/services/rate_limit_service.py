@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, Request, status
@@ -12,6 +13,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from backend.app.config import get_settings
 from backend.app.models.rate_limit import RateLimitBucket, utc_now
+
+logger = logging.getLogger(__name__)
 
 SCOPE_TURNS_HOUR = "turns_hour"
 SCOPE_TURNS_DAY = "turns_day"
@@ -56,13 +59,19 @@ def client_ip_from_request(request: Request) -> str:
     connecting address at the *end* of the header — use that entry.
     """
     forwarded = request.headers.get("x-forwarded-for")
+    chosen = "unknown"
     if forwarded:
         parts = [p.strip() for p in forwarded.split(",") if p.strip()]
         if parts:
-            return parts[-1]
-    if request.client and request.client.host:
-        return request.client.host
-    return "unknown"
+            chosen = parts[-1]
+    elif request.client and request.client.host:
+        chosen = request.client.host
+    logger.debug(
+        "rate_limit_ip x_forwarded_for=%r chosen_key=%r",
+        forwarded,
+        chosen,
+    )
+    return chosen
 
 
 async def _fetch_bucket(
