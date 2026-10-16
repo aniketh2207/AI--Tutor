@@ -79,6 +79,7 @@ def test_openapi_schema_and_frontend_typescript_contract_alignment() -> None:
         "/api/auth/register",
         "/api/auth/login",
         "/api/auth/google",
+        "/api/auth/public-config",
         "/api/auth/me",
         "/api/subjects/enroll",
         "/api/subjects/enrollments",
@@ -276,6 +277,7 @@ def test_phase_5_docker_cicd_and_readme_readiness() -> None:
     assert "--memory=512Mi" in cicd
 
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
-    assert "4-Step Socratic Cycle" in readme
-    assert "AGENT_EXECUTION_LOG.md" in readme
+    assert "4-Step Socratic Loop" in readme
+    assert "Continue with Google" in readme
+    assert "GOOGLE_CLIENT_ID" in readme
 

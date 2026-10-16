@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import math
 from typing import Any
 from fastapi import HTTPException, status
@@ -145,11 +146,11 @@ async def ingest_pdf_chapter(
 ) -> tuple[TextbookChapter, list[DocumentChunk]]:
     """Parse PDF, chunk into 600-char segments, embed via gemini-embedding-001, and persist."""
     active_router = router or get_gemini_router()
-    pages = extract_pages_from_pdf(pdf_bytes)
+    pages = await asyncio.to_thread(extract_pages_from_pdf, pdf_bytes)
     raw_chunks = chunk_page_texts(pages, chunk_size=600, overlap=100)
 
     texts_to_embed = [c["content"] for c in raw_chunks]
-    embeddings = active_router.embed_texts(texts_to_embed)
+    embeddings = await asyncio.to_thread(active_router.embed_texts, texts_to_embed)
 
     chapter = TextbookChapter(
         user_id=user_id,
@@ -203,7 +204,7 @@ async def retrieve_top_k_chunks(
     if not chunks:
         return []
 
-    query_vecs = active_router.embed_texts([query_text])
+    query_vecs = await asyncio.to_thread(active_router.embed_texts, [query_text])
     query_vec = query_vecs[0] if query_vecs else []
 
     scored: list[dict[str, Any]] = []

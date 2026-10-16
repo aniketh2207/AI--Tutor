@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Optional
 import uuid
-from sqlalchemy import Column, JSON, Text
+from sqlalchemy import Column, JSON, Text, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -40,6 +40,13 @@ class SocraticTurnLog(SQLModel, table=True):
     """Immutable audit log of a completed 4-step Neuro-Symbolic Socratic turn."""
 
     __tablename__ = "socratic_turn_logs"
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id",
+            "turn_index",
+            name="uq_socratic_turn_session_index",
+        ),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
     session_id: str = Field(foreign_key="tutor_sessions.id", index=True, max_length=64)

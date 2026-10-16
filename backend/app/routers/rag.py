@@ -18,6 +18,7 @@ from backend.app.schemas.rag import (
 from backend.app.services.auth_service import get_current_user
 from backend.app.services.gemini_router import GeminiRouter, get_gemini_router
 from backend.app.services.rag_ingestion import ingest_pdf_chapter
+from backend.app.services.rate_limit_service import enforce_upload_budget
 
 router = APIRouter(prefix="/api/rag", tags=["Custom Textbook RAG"])
 
@@ -36,6 +37,9 @@ async def upload_textbook_pdf(
     gemini_router: GeminiRouter = Depends(get_gemini_router),
 ) -> RagUploadResponse:
     """Upload a PDF (<=15 pages / <=5MB), extract & chunk via PyMuPDF, and embed into 768-dim vectors."""
+    assert current_user.id is not None
+    await enforce_upload_budget(session, current_user.id)
+
     settings = get_settings()
     filename = file.filename or "chapter.pdf"
     if not filename.lower().endswith(".pdf"):
@@ -75,16 +79,37 @@ async def upload_textbook_pdf(
     )
 
 
+async def _require_owned_chapter(
+    session: AsyncSession,
+    current_user: User,
+    chapter_id: int,
+) -> TextbookChapter:
+    """Return a chapter owned by the current user, or raise 404."""
+    assert current_user.id is not None
+    chapter = (
+        await session.exec(
+            select(TextbookChapter).where(
+                TextbookChapter.id == chapter_id,
+                TextbookChapter.user_id == current_user.id,
+            )
+        )
+    ).first()
+    if chapter is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Textbook chapter not found.",
+        )
+    return chapter
+
+
 @router.get("/chapters", response_model=list[TextbookChapterResponse])
 async def list_textbook_chapters(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[TextbookChapterResponse]:
-    """List uploaded textbook chapters available to the authenticated student."""
-    stmt = select(TextbookChapter).where(
-        (TextbookChapter.user_id == current_user.id)
-        | (TextbookChapter.user_id.is_(None))  # type: ignore[union-attr]
-    )
+    """List textbook chapters owned by the authenticated student only."""
+    assert current_user.id is not None
+    stmt = select(TextbookChapter).where(TextbookChapter.user_id == current_user.id)
     result = await session.exec(stmt)
     chapters = list(result.all())
 
@@ -115,8 +140,8 @@ async def get_chapter_chunks(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[DocumentChunkSchema]:
-    """Retrieve all extracted chunks for a specific textbook chapter."""
-    _ = current_user
+    """Retrieve chunks for a chapter owned by the authenticated student."""
+    await _require_owned_chapter(session, current_user, chapter_id)
     stmt = (
         select(DocumentChunk)
         .where(DocumentChunk.chapter_id == chapter_id)

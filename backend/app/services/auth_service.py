@@ -98,9 +98,10 @@ def verify_google_oauth_token(token: str) -> dict[str, str]:
             settings.google_client_id,
         )
     except Exception as exc:
+        # Never leak verifier exception text to clients (P0 Round 1).
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid Google OAuth2 ID token: {exc}",
+            detail="Google sign-in failed.",
         ) from exc
 
     email = id_info.get("email")

@@ -11,6 +11,7 @@ from backend.app.config import get_settings
 from backend.app.database import async_session_factory, init_db
 from backend.app.routers import auth, rag, subjects, tutor
 from backend.app.routers.subjects import seed_default_curriculum
+from backend.app.startup_validation import validate_production_settings
 
 
 @asynccontextmanager
@@ -25,6 +26,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     """Construct and configure the FastAPI application."""
     settings = get_settings()
+    validate_production_settings(settings)
     app = FastAPI(
         title=settings.app_name,
         version="1.0.0",

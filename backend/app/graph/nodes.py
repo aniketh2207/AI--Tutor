@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any, Literal
 
@@ -80,9 +81,16 @@ def build_socratic_prompt(state: SocraticGraphState) -> str:
             indent=2,
         )
         sections.append(
-            "GROUNDED RAG INSTRUCTIONS: You MUST set `cited_chunk_id` to one of the "
-            "retrieved chunks below and copy an exact 100% character-for-character "
-            "substring from that chunk into `verbatim_quote`.\n"
+            "GROUNDED RAG INSTRUCTIONS:\n"
+            "1. Set `cited_chunk_id` to one retrieved chunk id below.\n"
+            "2. Copy an exact 100% character-for-character substring from that chunk "
+            "into `verbatim_quote` ONLY (for citation verification).\n"
+            "3. CRITICAL ANTI-LEAK: `socratic_question` must be a short guiding question "
+            "in YOUR OWN WORDS. Do NOT paste, quote, or closely restate textbook "
+            "sentences, page titles, or long phrases from the chunks inside "
+            "`socratic_question`. The system attaches the citation separately.\n"
+            "4. Never answer the student's question directly from the passage; ask what "
+            "they notice or how they would define the idea.\n"
             f"RETRIEVED TEXTBOOK CHUNKS:\n{chunks_formatted}"
         )
 
@@ -93,10 +101,18 @@ def build_socratic_prompt(state: SocraticGraphState) -> str:
         last_verdict = audit_trail[-1]
         rejection_reason = last_verdict.get("rejection_reason") or "Rule violation."
         rule_checked = last_verdict.get("symbolic_rule_checked") or "Symbolic Verifier"
+        leak_fix = ""
+        if "LEAK VIOLATION" in rejection_reason or "Anti-Leak" in rule_checked:
+            leak_fix = (
+                "\nFIX REQUIRED: Keep `verbatim_quote` for citation, but rewrite "
+                "`socratic_question` as a brief question with ZERO textbook wording "
+                "(no quoted passage, no page headers, no copied clauses)."
+            )
         sections.append(
             "=== SYMBOLIC CRITIQUE FROM PREVIOUS ATTEMPT (MUST SELF-CORRECT) ===\n"
             f"Rule '{rule_checked}' violated: {rejection_reason}\n"
             "Regenerate your JSON response strictly resolving this symbolic violation."
+            f"{leak_fix}"
         )
 
     return "\n\n".join(sections)
@@ -116,7 +132,7 @@ def ground_truth_node(state: SocraticGraphState) -> dict[str, Any]:
     }
 
 
-def neural_leap_node(
+async def neural_leap_node(
     state: SocraticGraphState,
     router: GeminiRouter | None = None,
 ) -> dict[str, Any]:
@@ -125,10 +141,12 @@ def neural_leap_node(
     iteration = state.get("iteration", 0)
     prompt = build_socratic_prompt(state)
 
-    # Escalate starting tier on symbolic retries (Attempt 1->Tier 0, Attempt 2->Tier 1, Attempt 3->Tier 2)
-    draft, telemetry = active_router.generate_socratic_draft(
-        prompt=prompt,
-        start_tier=iteration,
+    # Offload blocking Vertex/Gemini I/O so concurrent /turn requests can overlap.
+    draft, telemetry = await asyncio.to_thread(
+        active_router.generate_socratic_draft,
+        prompt,
+        None,
+        iteration,
     )
     return {
         "latest_draft": {
@@ -259,10 +277,12 @@ def circuit_breaker_node(state: SocraticGraphState) -> dict[str, Any]:
     else:
         chunks = state.get("retrieved_chunks") or []
         if chunks and float(chunks[0].get("similarity", 0.0)) >= 0.65:
-            snippet = str(chunks[0].get("content", ""))[:180].strip()
+            # Never paste textbook text here — that would recreate the leak the
+            # verifier already rejected for MAX_SOCRATIC_RETRIES turns.
             fallback_reply = (
-                f'Based on the uploaded textbook passage ("{snippet}..."), '
-                "how would you summarize the key mechanism in your own words?"
+                "I found a relevant section in your uploaded chapter, but I want you "
+                "to think it through first. Without copying the wording, what do you "
+                "already understand about this idea, and which part still feels unclear?"
             )
         else:
             fallback_reply = (

@@ -12,6 +12,8 @@ __pycache__/
 # Environment secrets
 .env
 .env.local
+frontend/.env
+frontend/.env.local
 
 # Frontend
 frontend/node_modules/

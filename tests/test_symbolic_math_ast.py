@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import time
+import pytest
+from backend.app.config import get_settings
 from backend.app.schemas.socratic import NeuralSocraticDraft
 from backend.app.symbolic.ast_verifier import (
     detect_code_leak_in_hint,
@@ -13,6 +15,15 @@ from backend.app.symbolic.ast_verifier import (
 from backend.app.symbolic.math_verifier import (
      verify_math_turn,
 )
+
+
+@pytest.fixture(autouse=True)
+def _enable_sandbox_for_phase2_ast_suite(monkeypatch: pytest.MonkeyPatch):
+    """Phase 2 suite explicitly exercises the sandbox; P0 default is AST-only."""
+    monkeypatch.setenv("ENABLE_CODE_EXECUTION", "true")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 MATH_PROBLEM_RULES = {
     "variables": ["x"],

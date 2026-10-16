@@ -116,6 +116,8 @@ DEFAULT_CURRICULUM_PROBLEMS: list[dict[str, Any]] = [
 
 async def seed_default_curriculum(session: AsyncSession) -> list[ProblemItem]:
     """Idempotently seed default Math and Coding curriculum problems."""
+    from sqlalchemy.exc import IntegrityError
+
     seeded: list[ProblemItem] = []
     for item_data in DEFAULT_CURRICULUM_PROBLEMS:
         result = await session.exec(
@@ -123,8 +125,17 @@ async def seed_default_curriculum(session: AsyncSession) -> list[ProblemItem]:
         )
         existing = result.first()
         if existing is None:
-            existing = ProblemItem(**item_data)
-            session.add(existing)
+            try:
+                async with session.begin_nested():
+                    existing = ProblemItem(**item_data)
+                    session.add(existing)
+                    await session.flush()
+            except IntegrityError:
+                result = await session.exec(
+                    select(ProblemItem).where(ProblemItem.slug == item_data["slug"])
+                )
+                existing = result.first()
+                assert existing is not None
         seeded.append(existing)
     await session.commit()
     for problem in seeded:

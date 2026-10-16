@@ -14,6 +14,7 @@ import textwrap
 import time
 from typing import Any
 
+from backend.app.config import get_settings
 from backend.app.schemas.socratic import NeuralSocraticDraft, SymbolicVerdict
 from backend.app.symbolic.ast_sandbox import run_code_in_sandbox
 
@@ -211,9 +212,15 @@ def verify_code_turn(
         forbidden_calls=forbidden_calls,
     )
 
+    allow_exec = get_settings().enable_code_execution
     sandbox_ok = False
     verification_detail = ast_err or "AST_OK"
-    if ast_ok and test_cases:
+    if not allow_exec:
+        # P0: AST-only mode — never exec student code in-process.
+        sandbox_ok = False
+        if ast_ok:
+            verification_detail = "AST_OK_EXECUTION_DISABLED"
+    elif ast_ok and test_cases:
         sandbox_ok, verification_detail = run_code_in_sandbox(
             code_str=code_to_check,
             function_name=function_name,
@@ -225,12 +232,19 @@ def verify_code_turn(
         sandbox_ok = True
         verification_detail = "AST_OK_CHAT_NO_TESTS"
 
-    student_step_correct = ast_ok and sandbox_ok
+    # With execution disabled, structural correctness is reported but not "solved".
+    student_step_correct = ast_ok if not allow_exec else (ast_ok and sandbox_ok)
+    problem_solved = bool(ast_ok and sandbox_ok and allow_exec)
     answer_leaked = False
     if not student_step_correct:
         answer_leaked = detect_code_leak_in_hint(draft.socratic_question)
 
     elapsed_ms = round((time.perf_counter() - start_ts) * 1000.0, 2)
+    rule_label = (
+        f"Python AST (EXECUTION_DISABLED) ({verification_detail})"
+        if not allow_exec
+        else f"Python AST & Sandbox ({verification_detail})"
+    )
 
     if answer_leaked:
         return (
@@ -250,19 +264,19 @@ def verify_code_turn(
             False,
         )
 
-    if draft.is_final_goal_reached_claim and not student_step_correct:
+    if draft.is_final_goal_reached_claim and not problem_solved:
         return (
             SymbolicVerdict(
                 iteration=iteration,
                 passed=False,
-                student_step_correct=False,
+                student_step_correct=student_step_correct,
                 answer_leaked_in_hint=False,
                 rejection_reason=(
                     "Rule CODE_VERIFICATION violated: Draft claimed "
                     "is_final_goal_reached_claim=True, but code verification failed "
                     f"({verification_detail})."
                 ),
-                symbolic_rule_checked=f"Python AST & Sandbox ({verification_detail})",
+                symbolic_rule_checked=rule_label,
                 model_used=model_used,
                 latency_ms=elapsed_ms,
             ),
@@ -276,9 +290,9 @@ def verify_code_turn(
             student_step_correct=student_step_correct,
             answer_leaked_in_hint=False,
             rejection_reason=None,
-            symbolic_rule_checked=f"Python AST & Sandbox ({verification_detail})",
+            symbolic_rule_checked=rule_label,
             model_used=model_used,
             latency_ms=elapsed_ms,
         ),
-        student_step_correct,
+        problem_solved,
     )

@@ -63,6 +63,31 @@ def detect_rag_answer_span_leak(
     return copied_ratio > max_copy_ratio
 
 
+def detect_rag_textbook_dump(
+    socratic_question: str,
+    textbook_span: str,
+    *,
+    min_match_chars: int = 40,
+    max_question_copy_ratio: float = 0.50,
+) -> bool:
+    """Return True if most of the hint is a contiguous paste from textbook text.
+
+    Used for open-chat RAG when no `target_concept` is configured. Comparing against
+    `verbatim_quote` alone is too brittle: models must cite a quote, and short title
+    overlaps should not fail the turn.
+    """
+    norm_q = normalize_whitespace_case(socratic_question)
+    norm_target = normalize_whitespace_case(textbook_span)
+    if not norm_q or not norm_target or len(norm_q) < min_match_chars:
+        return False
+
+    matcher = SequenceMatcher(None, norm_q, norm_target)
+    longest_match = matcher.find_longest_match(0, len(norm_q), 0, len(norm_target))
+    if longest_match.size < min_match_chars:
+        return False
+    return (longest_match.size / float(len(norm_q))) > max_question_copy_ratio
+
+
 def check_student_concept_mastery(
     student_claim: str,
     student_raw_input: str | None,
@@ -166,31 +191,51 @@ def verify_rag_turn(
     if not target_concept and draft.is_final_goal_reached_claim:
         student_step_correct = True
 
-    # 3. Anti-Leak Check (>60% verbatim copy of target answer span before mastery)
-    target_span_for_leak = target_concept or str(draft.verbatim_quote or "")
+    # 3. Anti-Leak Check (before student identifies the core concept)
     answer_leaked = False
-    if not student_step_correct and target_span_for_leak:
-        answer_leaked = detect_rag_answer_span_leak(
-            socratic_question=draft.socratic_question,
-            target_answer_span=target_span_for_leak,
-            max_copy_ratio=0.60,
-        )
+    if not student_step_correct:
+        if target_concept:
+            # Practice / concept-targeted: reject copying >60% of the answer span.
+            answer_leaked = detect_rag_answer_span_leak(
+                socratic_question=draft.socratic_question,
+                target_answer_span=target_concept,
+                max_copy_ratio=0.60,
+            )
+        else:
+            # Open chat: reject hints that are mostly pasted textbook text.
+            textbook_span = str(
+                (cited_chunk or {}).get("content") or draft.verbatim_quote or ""
+            )
+            answer_leaked = detect_rag_textbook_dump(
+                socratic_question=draft.socratic_question,
+                textbook_span=textbook_span,
+            )
 
     elapsed_ms = round((time.perf_counter() - start_ts) * 1000.0, 2)
 
     if answer_leaked:
+        if target_concept:
+            rejection = (
+                "LEAK VIOLATION: Your Socratic hint verbatim-copied more than 60% "
+                "of the target textbook answer span before the student identified "
+                "the core concept. Ask a guiding question instead."
+            )
+            rule = "RAG Anti-Leak Span Guard (<=60% copy ratio)"
+        else:
+            rejection = (
+                "LEAK VIOLATION: Your Socratic hint is mostly a verbatim paste from "
+                "the textbook chunk. Put evidence only in `verbatim_quote` and ask a "
+                "short guiding question in your own words."
+            )
+            rule = "RAG Anti-Leak Textbook Dump Guard"
         return (
             SymbolicVerdict(
                 iteration=iteration,
                 passed=False,
                 student_step_correct=student_step_correct,
                 answer_leaked_in_hint=True,
-                rejection_reason=(
-                    "LEAK VIOLATION: Your Socratic hint verbatim-copied more than 60% "
-                    "of the target textbook answer span before the student identified "
-                    "the core concept. Ask a guiding question instead."
-                ),
-                symbolic_rule_checked="RAG Anti-Leak Span Guard (<=60% copy ratio)",
+                rejection_reason=rejection,
+                symbolic_rule_checked=rule,
                 model_used=model_used,
                 latency_ms=elapsed_ms,
             ),

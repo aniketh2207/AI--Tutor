@@ -13,7 +13,7 @@ The neural layer (Vertex AI Gemini) drafts conversational hints. The symbolic la
 - **Track 2 · Coding** — Python AST structure checks, anti-leak for full solutions, optional 2s sandbox tests
 - **Track 3 · Textbook RAG** — PDF upload (≤15 pages / ≤5MB), `gemini-embedding-001` retrieval, verbatim citation guard
 - **Multi-model router** — `gemini-3.1-flash-lite` → `gemini-3.5-flash-lite` → `gemini-3.7-flash` → `gemini-2.5-flash-lite`
-- **Hybrid auth** — local email/password (bcrypt + JWT) and Google OAuth ID-token verification
+- **Hybrid auth** — email/password (bcrypt + JWT) plus a real **Continue with Google** button (Google Identity Services → `/api/auth/google`)
 - **React + Vite UI** — light green/orange chat interface with a live Neuro-Symbolic Audit drawer
 
 ---
@@ -64,7 +64,11 @@ gcloud auth application-default login
 gcloud auth application-default set-quota-project YOUR_GCP_PROJECT_ID
 ```
 
-Copy `.env.example` to `.env` and set `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, and `GOOGLE_GENAI_USE_VERTEXAI=true`.
+Copy `.env.example` to `.env` and set:
+
+- `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_GENAI_USE_VERTEXAI=true`
+- `GOOGLE_CLIENT_ID` — OAuth **Web application** client ID from Google Cloud Console  
+  Add Authorized JavaScript origin: `http://localhost:5173` (and your production frontend origin when deployed)
 
 ---
 

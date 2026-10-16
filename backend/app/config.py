@@ -50,6 +50,16 @@ class Settings(BaseSettings):
     rag_max_pdf_pages: int = 15
     rag_max_pdf_bytes: int = 5_242_880
     ast_sandbox_timeout_seconds: float = 2.0
+    # P0: student code exec() is off by default (AST-only until isolated runner exists)
+    enable_code_execution: bool = False
+
+    # Round 2: durable API budget limits (DB-backed; Cloud Run multi-instance safe)
+    turns_per_user_per_hour: int = 20
+    turns_per_user_per_day: int = 100
+    uploads_per_user_per_day: int = 5
+    global_turns_per_day: int = 1000
+    registrations_per_ip_per_day: int = 10
+    allow_public_registration: bool = True
 
     # CORS Configuration
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"

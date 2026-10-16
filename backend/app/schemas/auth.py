@@ -30,6 +30,13 @@ class GoogleAuthRequest(BaseModel):
     id_token: str = Field(min_length=10)
 
 
+class PublicAuthConfig(BaseModel):
+    """Non-secret auth config the frontend needs to render Google Sign-In."""
+
+    google_client_id: str
+    google_sign_in_enabled: bool
+
+
 class UserResponse(BaseModel):
     """Public profile representation of an authenticated student."""
 

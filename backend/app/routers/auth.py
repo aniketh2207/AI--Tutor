@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from backend.app.database import get_session
 from backend.app.models.user import User
+from backend.app.config import get_settings
 from backend.app.schemas.auth import (
     AuthTokenResponse,
     GoogleAuthRequest,
+    PublicAuthConfig,
     UserLoginRequest,
     UserRegisterRequest,
     UserResponse,
@@ -22,8 +24,25 @@ from backend.app.services.auth_service import (
     verify_google_oauth_token,
     verify_password,
 )
+from backend.app.services.rate_limit_service import enforce_registration_budget
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+
+
+@router.get("/public-config", response_model=PublicAuthConfig)
+async def get_public_auth_config() -> PublicAuthConfig:
+    """Return the Google OAuth Web client ID for the Sign-In button (public)."""
+    settings = get_settings()
+    client_id = settings.google_client_id.strip()
+    enabled = bool(
+        client_id
+        and not client_id.startswith("mock-")
+        and not client_id.startswith("your-")
+    )
+    return PublicAuthConfig(
+        google_client_id=client_id if enabled else "",
+        google_sign_in_enabled=enabled,
+    )
 
 
 @router.post(
@@ -33,6 +52,7 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 )
 async def register_user(
     payload: UserRegisterRequest,
+    request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> AuthTokenResponse:
     """Register a new student account using Local Email/Password (Bcrypt + JWT)."""
@@ -45,6 +65,8 @@ async def register_user(
             status_code=status.HTTP_409_CONFLICT,
             detail="An account with this email address already exists.",
         )
+
+    await enforce_registration_budget(session, request)
 
     user = User(
         email=normalized_email,
@@ -90,6 +112,7 @@ async def login_user(
 @router.post("/google", response_model=AuthTokenResponse)
 async def google_oauth_login(
     payload: GoogleAuthRequest,
+    request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> AuthTokenResponse:
     """Authenticate or auto-provision a student via Google OAuth2 ID token."""
@@ -101,6 +124,7 @@ async def google_oauth_login(
     result = await session.exec(select(User).where(User.email == email))
     user = result.first()
     if user is None:
+        await enforce_registration_budget(session, request)
         user = User(
             email=email,
             full_name=full_name,

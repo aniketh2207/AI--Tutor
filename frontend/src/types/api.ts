@@ -22,6 +22,11 @@ export interface GoogleAuthRequest {
   id_token: string;
 }
 
+export interface PublicAuthConfig {
+  google_client_id: string;
+  google_sign_in_enabled: boolean;
+}
+
 export interface UserResponse {
   id: number;
   email: string;
