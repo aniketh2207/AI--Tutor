@@ -166,6 +166,16 @@ async def test_spa_routes_and_api_404(
     assert docs.status_code == 404
 
 
+def test_normalize_async_db_url_strips_powershell_junk() -> None:
+    """Secret Manager uploads via PowerShell often add quotes/newlines — strip them."""
+    from backend.app.database import normalize_async_db_url
+
+    dirty = '  "postgresql://u:p@host/db?sslmode=require"\r\n'
+    cleaned = normalize_async_db_url(dirty)
+    assert cleaned == "postgresql+psycopg://u:p@host/db?sslmode=require"
+    assert "\n" not in cleaned and '"' not in cleaned
+
+
 def test_cicd_uses_secret_manager_and_smoke_rollback() -> None:
     """Deploy workflow must use --set-secrets and roll back on smoke failure."""
     cicd = (REPO_ROOT / ".github" / "workflows" / "ci_cd.yml").read_text(

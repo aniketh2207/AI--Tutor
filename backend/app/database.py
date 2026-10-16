@@ -17,14 +17,19 @@ import backend.app.models  # noqa: F401 - ensure all SQLModel tables are registe
 
 
 def normalize_async_db_url(raw_url: str) -> str:
-    """Normalize PostgreSQL or SQLite URLs to their async SQLAlchemy driver variants."""
-    if raw_url.startswith("postgres://"):
-        return raw_url.replace("postgres://", "postgresql+psycopg://", 1)
-    if raw_url.startswith("postgresql://"):
-        return raw_url.replace("postgresql://", "postgresql+psycopg://", 1)
-    if raw_url.startswith("sqlite:///"):
-        return raw_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
-    return raw_url
+    """Normalize PostgreSQL or SQLite URLs to their async SQLAlchemy driver variants.
+
+    Strips whitespace and accidental surrounding quotes (common when secrets are
+    uploaded via PowerShell ``echo`` / ``Write-Output`` pipelines).
+    """
+    cleaned = raw_url.strip().strip('"').strip("'").strip()
+    if cleaned.startswith("postgres://"):
+        return cleaned.replace("postgres://", "postgresql+psycopg://", 1)
+    if cleaned.startswith("postgresql://"):
+        return cleaned.replace("postgresql://", "postgresql+psycopg://", 1)
+    if cleaned.startswith("sqlite:///"):
+        return cleaned.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+    return cleaned
 
 
 def build_async_engine(db_url: str | None = None) -> AsyncEngine:
