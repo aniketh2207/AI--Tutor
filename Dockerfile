@@ -25,7 +25,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH" \
     PYTHONPATH="/app" \
-    PORT=8080
+    PORT=8080 \
+    APP_ENV=production \
+    DEBUG=false
 
 WORKDIR /app
 

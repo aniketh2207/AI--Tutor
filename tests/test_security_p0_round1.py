@@ -228,8 +228,9 @@ def test_code_execution_disabled_by_default_and_skips_sandbox(
 
     assert verdict.passed is True
     assert "EXECUTION_DISABLED" in verdict.symbolic_rule_checked
-    # Without sandbox, do not claim the coding goal is fully solved via I/O tests
-    assert solved is False
+    # AST-only mode: required nodes + no forbidden calls counts as structurally solved
+    assert solved is True
+    assert verdict.student_step_correct is True
 
 
 def test_production_startup_rejects_default_jwt_secret() -> None:

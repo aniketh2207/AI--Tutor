@@ -216,8 +216,7 @@ def verify_code_turn(
     sandbox_ok = False
     verification_detail = ast_err or "AST_OK"
     if not allow_exec:
-        # P0: AST-only mode — never exec student code in-process.
-        sandbox_ok = False
+        # AST-only: never exec; structure (required/forbidden) defines solved.
         if ast_ok:
             verification_detail = "AST_OK_EXECUTION_DISABLED"
     elif ast_ok and test_cases:
@@ -228,16 +227,18 @@ def verify_code_turn(
             timeout_seconds=timeout_seconds,
         )
     elif ast_ok and chat_mode and not test_cases:
-        # Chat + code pasted: structural OK is enough without seeded test cases.
         sandbox_ok = True
         verification_detail = "AST_OK_CHAT_NO_TESTS"
 
-    # With execution disabled, structural correctness is reported but not "solved".
-    student_step_correct = ast_ok if not allow_exec else (ast_ok and sandbox_ok)
-    problem_solved = bool(ast_ok and sandbox_ok and allow_exec)
-    answer_leaked = False
-    if not student_step_correct:
-        answer_leaked = detect_code_leak_in_hint(draft.socratic_question)
+    if not allow_exec:
+        student_step_correct = ast_ok
+        problem_solved = bool(ast_ok)
+    else:
+        student_step_correct = bool(ast_ok and sandbox_ok)
+        problem_solved = bool(ast_ok and sandbox_ok)
+
+    # Always run anti-leak, even when the student step is already correct.
+    answer_leaked = detect_code_leak_in_hint(draft.socratic_question)
 
     elapsed_ms = round((time.perf_counter() - start_ts) * 1000.0, 2)
     rule_label = (
