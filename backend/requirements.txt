@@ -1,0 +1,45 @@
+# ==============================================================================
+# LOCKED BACKEND DEPENDENCIES (CPU-ONLY, ZERO LOCAL ML WEIGHTS)
+# Forbidden: torch, tensorflow, transformers, sentence-transformers,
+#            langchain-google-genai, google-generativeai
+# ==============================================================================
+
+# Web Framework & ASGI Server
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.30.0,<1.0.0
+python-multipart>=0.0.12,<1.0.0
+
+# Data Validation & Settings (Pydantic v2)
+pydantic>=2.9.0,<3.0.0
+pydantic-settings>=2.5.0,<3.0.0
+email-validator>=2.2.0,<3.0.0
+
+# Database ORM, Async Drivers & Vector Support
+sqlmodel>=0.0.22,<1.0.0
+sqlalchemy[asyncio]>=2.0.35,<3.0.0
+psycopg[binary,pool]>=3.2.0,<4.0.0
+aiosqlite>=0.20.0,<1.0.0
+greenlet>=3.1.0,<4.0.0
+pgvector>=0.3.5,<1.0.0
+
+# LangGraph Orchestration & Checkpointing
+langgraph>=0.2.50,<1.0.0
+langgraph-checkpoint-postgres>=2.0.0,<3.0.0
+
+# Official Google GenAI SDK
+google-genai>=1.0.0,<2.0.0
+
+# Deterministic Symbolic Verifiers (Track 1: Math, Track 3: PDF RAG)
+sympy>=1.13.0,<2.0.0
+PyMuPDF>=1.24.0,<2.0.0
+
+# Hybrid Authentication (Bcrypt + JWT + Google OAuth2)
+bcrypt>=4.2.0,<5.0.0
+PyJWT>=2.9.0,<3.0.0
+google-auth>=2.35.0,<3.0.0
+requests>=2.32.0,<3.0.0
+
+# Testing & Verification Suite
+pytest>=8.3.0,<9.0.0
+pytest-asyncio>=0.24.0,<1.0.0
+httpx>=0.27.0,<1.0.0

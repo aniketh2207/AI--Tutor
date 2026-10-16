@@ -1,0 +1,52 @@
+version: "3.9"
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: socratic-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: socratic
+      POSTGRES_PASSWORD: socratic_dev_password
+      POSTGRES_DB: socratic_tutor
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U socratic -d socratic_tutor"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: socratic-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 8000
+      DATABASE_URL: postgresql+psycopg://socratic:socratic_dev_password@db:5432/socratic_tutor
+      GOOGLE_GENAI_USE_VERTEXAI: "true"
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-ai-tutor-511715}
+      GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-us-central1}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-socratic-tutor-dev-secret-key-change-in-prod-32b}
+      CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173"
+    ports:
+      - "8000:8000"
+
+  frontend:
+    image: node:20-alpine
+    container_name: socratic-frontend
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    environment:
+      VITE_API_BASE_URL: "http://localhost:8000"
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    depends_on:
+      - backend

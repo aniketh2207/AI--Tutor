@@ -1,0 +1,12 @@
+# Exclude local virtualenvs, node_modules, git history, and local DBs from Docker build context
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.db
+*.sqlite3
+.env
+.git/
+frontend/node_modules/
+frontend/dist/
